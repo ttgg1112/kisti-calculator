@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>কিস্তি ক্যালকুলেটর (আসল + লাভ)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background:#f6f7fb; }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 8px 22px rgba(0,0,0,.06); padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p.note { margin: 0 0 16px; color: #555; line-height: 1.4; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    label { display:block; font-size: 13px; color:#333; margin: 2px 0 6px; }
+    input, select, button { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid #d9dbe7; font-size: 15px; }
+    input:focus, select:focus { outline: none; border-color:#7aa7ff; box-shadow: 0 0 0 3px rgba(122,167,255,.22); }
+    .row { display:flex; gap:10px; }
+    .row > * { flex:1; }
+    .actions { display:flex; gap:10px; margin-top: 12px; }
+    button { cursor: pointer; border: none; background:#2f6bff; color:#fff; font-weight:600; }
+    button.secondary { background:#e9ecf7; color:#111; border: 1px solid #d9dbe7; }
+    .out { margin-top: 14px; display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 720px) { .out { grid-template-columns: 1fr; } }
+    .stat { background:#f3f6ff; border:1px solid #dde6ff; border-radius: 14px; padding: 12px; }
+    .stat .k { font-size: 12px; color:#444; margin-bottom: 6px; }
+    .stat .v { font-size: 18px; font-weight: 700; }
+    .warn { margin-top: 12px; color:#b45309; background:#fff7ed; border:1px solid #fed7aa; padding:10px 12px; border-radius: 12px; display:none; }
+    .footer { margin-top: 10px; color:#666; font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>কিস্তি ক্যালকুলেটর (আসল + লাভ)</h1>
+      <p class="note">
+        “প্রতিদিন ১০০ টাকার মধ্যে লাভও থাকবে” — এই ধরনের কিস্তিতে সাধারণত প্রতিটি কিস্তি <b>আসল+লাভ</b> মিলিয়ে ধরা হয়।
+        তাই ডিফল্ট হিসাব হিসেবে <b>Proportional</b> (প্রতি কিস্তিতে আসল-লাভ একই অনুপাতে) পদ্ধতি রাখা হয়েছে।
+      </p>
+
+      <div class="grid">
+        <div>
+          <label>আসল টাকা (Principal)</label>
+          <input id="principal" type="number" min="0" step="0.01" placeholder="যেমন: 10000" value="10000">
+        </div>
+
+        <div>
+          <label>লাভের পারসেন্ট (%)</label>
+          <input id="profitPct" type="number" min="0" step="0.01" placeholder="যেমন: 13" value="13">
+        </div>
+
+        <div>
+          <label>সময় (দিন)</label>
+          <input id="days" type="number" min="1" step="1" placeholder="যেমন: 113" value="113">
+        </div>
+
+        <div>
+          <label>দৈনিক কিস্তি (ঐচ্ছিক)</label>
+          <input id="daily" type="number" min="0" step="0.01" placeholder="খালি রাখলে নিজে হিসাব করবে (মোট/দিন)" value="100">
+        </div>
+
+        <div>
+          <label>এখন পর্যন্ত কত টাকা দিয়েছে</label>
+          <input id="paid" type="number" min="0" step="0.01" placeholder="যেমন: 5600" value="5600">
+        </div>
+
+        <div>
+          <label>হিসাবের পদ্ধতি</label>
+          <select id="method">
+            <option value="proportional" selected>Proportional (আসল-লাভ অনুপাতে ভাগ)</option>
+            <option value="profitFirst">Profit First (আগে লাভ কাটবে, পরে আসল)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="calcBtn">হিসাব করুন</button>
+        <button class="secondary" id="resetBtn" type="button">রিসেট</button>
+      </div>
+
+      <div class="warn" id="warn"></div>
+
+      <div class="out" id="output">
+        <div class="stat">
+          <div class="k">মোট লাভ</div>
+          <div class="v" id="totalProfit">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">মোট আদায়যোগ্য টাকা (আসল+লাভ)</div>
+          <div class="v" id="totalReceivable">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">দৈনিক কিস্তি (হিসাব/ইনপুট)</div>
+          <div class="v" id="dailyOut">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি মোট টাকা</div>
+          <div class="v" id="remainingTotal">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি আসল (আপনি আর “আসল” কত পাবেন)</div>
+          <div class="v" id="remainingPrincipal">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি লাভ</div>
+          <div class="v" id="remainingProfit">—</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        টিপস: যদি আপনার কিস্তি সবসময় <span class="mono">দিন × দৈনিক কিস্তি = মোট আদায়</span> হয়, তাহলে দৈনিক কিস্তি ইনপুট দিলে মিলিয়ে দেখতে পারবেন।
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    function money(n) {
+      if (!isFinite(n)) return "—";
+      return new Intl.NumberFormat("bn-BD", { maximumFractionDigits: 2 }).format(n) + " টাকা";
+    }
+
+    function showWarn(msg) {
+      const w = el("warn");
+      if (!msg) { w.style.display = "none"; w.textContent = ""; return; }
+      w.style.display = "block";
+      w.textContent = msg;
+    }
+
+    function calc() {
+      showWarn("");
+
+      const principal = parseFloat(el("principal").value);
+      const profitPct = parseFloat(el("profitPct").value);
+      const days = parseInt(el("days").value, 10);
+      const paid = parseFloat(el("paid").value);
+      const method = el("method").value;
+
+      let daily = el("daily").value.trim() === "" ? NaN : parseFloat(el("daily").value);
+
+      if (!(principal >= 0) || !(profitPct >= 0) || !(days >= 1) || !(paid >= 0)) {
+        showWarn("অনুগ্রহ করে সব ইনপুট সঠিকভাবে দিন (নেগেটিভ নয়)।");
+        return;
+      }
+
+      const totalProfit = principal * (profitPct / 100);
+      const totalReceivable = principal + totalProfit;
+
+      // If daily is missing, compute as totalReceivable / days
+      if (!isFinite(daily) || daily <= 0) {
+        daily = totalReceivable / days;
+      }
+
+      const plannedTotalByDaily = daily * days;
+
+      // Remaining total based on totalReceivable (not daily*days if user overrides daily)
+      let remainingTotal = totalReceivable - paid;
+      if (remainingTotal < 0) remainingTotal = 0;
+
+      let remainingPrincipal = 0;
+      let remainingProfit = 0;
+
+      if (method === "proportional") {
+        // paid splits in same ratio as principal:profit
+        const paidRatio = Math.min(paid / totalReceivable, 1);
+        const paidPrincipal = principal * paidRatio;
+        const paidProfit = totalProfit * paidRatio;
+
+        remainingPrincipal = Math.max(principal - paidPrincipal, 0);
+        remainingProfit = Math.max(totalProfit - paidProfit, 0);
+      } else if (method === "profitFirst") {
+        // first cover profit, then principal
+        const paidToProfit = Math.min(paid, totalProfit);
+        const paidToPrincipal = Math.max(paid - totalProfit, 0);
+
+        remainingProfit = Math.max(totalProfit - paidToProfit, 0);
+        remainingPrincipal = Math.max(principal - paidToPrincipal, 0);
+      }
+
+      // Warn if daily*days doesn't match totalReceivable (user may have different daily)
+      const diff = Math.abs(plannedTotalByDaily - totalReceivable);
+      if (diff > 0.01) {
+        showWarn(
+          "⚠️ সতর্কতা: আপনার দেওয়া দৈনিক কিস্তি × দিন = " +
+          money(plannedTotalByDaily) +
+          " কিন্তু আসল+লাভ অনুযায়ী মোট আদায় = " +
+          money(totalReceivable) +
+          "। (আপনি চাইলে দৈনিক কিস্তি ঘর খালি রেখে দিন, তাহলে এটা নিজে হিসাব করবে।)"
+        );
+      }
+
+      el("totalProfit").textContent = money(totalProfit);
+      el("totalReceivable").textContent = money(totalReceivable);
+      el("dailyOut").textContent = money(daily) + " / দিন";
+      el("remainingTotal").textContent = money(remainingTotal);
+      el("remainingPrincipal").textContent = money(remainingPrincipal);
+      el("remainingProfit").textContent = money(remainingProfit);
+    }
+
+    function resetAll() {
+      el("principal").value = 10000;
+      el("profitPct").value = 13;
+      el("days").value = 113;
+      el("daily").value = 100;
+      el("paid").value = 5600;
+      el("method").value = "proportional";
+      showWarn("");
+      calc();
+    }
+
+    el("calcBtn").addEventListener("click", calc);
+    el("resetBtn").addEventListener("click", resetAll);
+
+    // Auto-calc on input change
+    ["principal","profitPct","days","daily","paid","method"].forEach(id => {
+      el(id).addEventListener("input", calc);
+      el(id).addEventListener("change", calc);
+    });
+
+    // Initial
+    calc();
+  </script>
+</body>
+</html>
