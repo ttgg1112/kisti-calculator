@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>কিস্তি ক্যালকুলেটর</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background:#f6f7fb; }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 8px 22px rgba(0,0,0,.06); padding: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    label { display:block; font-size: 13px; color:#333; margin: 2px 0 6px; }
+    input, select, button { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid #d9dbe7; font-size: 15px; }
+    input:focus, select:focus { outline: none; border-color:#7aa7ff; box-shadow: 0 0 0 3px rgba(122,167,255,.22); }
+    .actions { display:flex; gap:10px; margin-top: 12px; }
+    button { cursor: pointer; border: none; background:#2f6bff; color:#fff; font-weight:600; }
+    button.secondary { background:#e9ecf7; color:#111; border: 1px solid #d9dbe7; }
+    .out { margin-top: 14px; display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 720px) { .out { grid-template-columns: 1fr; } }
+    .stat { background:#f3f6ff; border:1px solid #dde6ff; border-radius: 14px; padding: 12px; }
+    .stat .k { font-size: 12px; color:#444; margin-bottom: 6px; }
+    .stat .v { font-size: 18px; font-weight: 700; }
+    .warn { margin-top: 12px; color:#b45309; background:#fff7ed; border:1px solid #fed7aa; padding:10px 12px; border-radius: 12px; display:none; }
+    .hint { font-size: 12px; color:#666; margin-top: 8px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+
+      <div class="grid">
+        <div>
+          <label>প্রথা (মাসিক / দৈনিক)</label>
+          <select id="plan">
+            <option value="monthly">মাসিক</option>
+            <option value="daily" selected>দৈনিক</option>
+          </select>
+        </div>
+
+        <div>
+          <label>লাভের পারসেন্ট (%)</label>
+          <select id="profitSelect"></select>
+        </div>
+
+        <div>
+          <label>আসল টাকা (Principal)</label>
+          <input id="principal" type="number" min="0" step="0.01" placeholder="যেমন: 10000" value="10000">
+        </div>
+
+        <div>
+          <label id="timeLabel">সময় (দিন)</label>
+          <input id="timeValue" type="number" min="1" step="1" value="113">
+        </div>
+
+        <div>
+          <label>এখন পর্যন্ত কত টাকা দিয়েছে</label>
+          <input id="paid" type="number" min="0" step="0.01" placeholder="যেমন: 5600" value="5600">
+        </div>
+
+        <div>
+          <label>&nbsp;</label>
+          <button id="calcBtn" type="button">হিসাব করুন</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="secondary" id="resetBtn" type="button">রিসেট</button>
+      </div>
+
+      <div class="warn" id="warn"></div>
+
+      <div class="out">
+        <div class="stat">
+          <div class="k">মোট লাভ</div>
+          <div class="v" id="totalProfit">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">মোট আদায়যোগ্য টাকা (আসল+লাভ)</div>
+          <div class="v" id="totalReceivable">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি মোট টাকা</div>
+          <div class="v" id="remainingTotal">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি আসল (আপনি আর আসল কত পাবেন)</div>
+          <div class="v" id="remainingPrincipal">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">বাকি লাভ</div>
+          <div class="v" id="remainingProfit">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">দিয়েছে টাকা (ইনপুট)</div>
+          <div class="v" id="paidOut">—</div>
+        </div>
+      </div>
+
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    function money(n) {
+      if (!isFinite(n)) return "—";
+      return new Intl.NumberFormat("bn-BD", { maximumFractionDigits: 2 }).format(n) + " টাকা";
+    }
+
+    function showWarn(msg) {
+      const w = el("warn");
+      if (!msg) { w.style.display = "none"; w.textContent = ""; return; }
+      w.style.display = "block";
+      w.textContent = msg;
+    }
+
+    function setProfitOptions() {
+      const plan = el("plan").value;
+      const profitSelect = el("profitSelect");
+      profitSelect.innerHTML = "";
+
+      if (plan === "monthly") {
+        const opt = document.createElement("option");
+        opt.value = "33";
+        opt.textContent = "33%";
+        profitSelect.appendChild(opt);
+
+        el("timeLabel").textContent = "সময় (মাস)";
+        el("timeValue").min = 1;
+        el("timeValue").max = 10;          // মাসিকের ক্ষেত্রে সর্বোচ্চ ১০ মাস
+        el("timeValue").step = 1;
+        if (!el("timeValue").value || parseInt(el("timeValue").value,10) > 10) el("timeValue").value = 10;
+
+        el("hint").textContent = "মাসিক মোডে লাভ 33% অটো সেট হবে এবং সময় সর্বোচ্চ 10 মাস।";
+      } else {
+        ["13","20"].forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p;
+          opt.textContent = p + "%";
+          profitSelect.appendChild(opt);
+        });
+
+        el("timeLabel").textContent = "সময় (দিন)";
+        el("timeValue").min = 1;
+        el("timeValue").removeAttribute("max");
+        el("timeValue").step = 1;
+
+        // ডিফল্ট: 13% -> 113 দিন
+        profitSelect.value = "13";
+        el("timeValue").value = 113;
+
+        el("hint").textContent = "দৈনিক মোডে লাভ 13% বা 20% হবে। 13% হলে সময় 113 দিন, 20% হলে 200 দিন অটো সেট হবে।";
+      }
+    }
+
+    function syncTimeByProfit() {
+      const plan = el("plan").value;
+      if (plan !== "daily") return;
+
+      const p = parseFloat(el("profitSelect").value);
+      if (p === 13) el("timeValue").value = 113;
+      if (p === 20) el("timeValue").value = 200;
+    }
+
+    function clampMonthlyTime() {
+      const plan = el("plan").value;
+      if (plan !== "monthly") return;
+
+      let t = parseInt(el("timeValue").value || "1", 10);
+      if (t < 1) t = 1;
+      if (t > 10) t = 10;
+      el("timeValue").value = t;
+    }
+
+    function calc() {
+      showWarn("");
+
+      const principal = parseFloat(el("principal").value);
+      const profitPct = parseFloat(el("profitSelect").value);
+      const paid = parseFloat(el("paid").value);
+      const plan = el("plan").value;
+
+      if (plan === "monthly") clampMonthlyTime();
+
+      if (!(principal >= 0) || !(profitPct >= 0) || !(paid >= 0)) {
+        showWarn("অনুগ্রহ করে আসল/লাভ/দিয়েছে টাকা সঠিকভাবে দিন (নেগেটিভ নয়)।");
+        return;
+      }
+
+      // Proportional method:
+      const totalProfit = principal * (profitPct / 100);
+      const totalReceivable = principal + totalProfit;
+
+      let remainingTotal = totalReceivable - paid;
+      if (remainingTotal < 0) remainingTotal = 0;
+
+      const paidRatio = Math.min(paid / totalReceivable, 1);
+      const paidPrincipal = principal * paidRatio;
+      const paidProfit = totalProfit * paidRatio;
+
+      const remainingPrincipal = Math.max(principal - paidPrincipal, 0);
+      const remainingProfit = Math.max(totalProfit - paidProfit, 0);
+
+      el("totalProfit").textContent = money(totalProfit);
+      el("totalReceivable").textContent = money(totalReceivable);
+      el("remainingTotal").textContent = money(remainingTotal);
+      el("remainingPrincipal").textContent = money(remainingPrincipal);
+      el("remainingProfit").textContent = money(remainingProfit);
+      el("paidOut").textContent = money(paid);
+    }
+
+    function resetAll() {
+      el("plan").value = "daily";
+      el("principal").value = 10000;
+      el("paid").value = 5600;
+      setProfitOptions();   // sets 13% and 113 days by default
+      showWarn("");
+      calc();
+    }
+
+    // Events
+    el("plan").addEventListener("change", () => {
+      setProfitOptions();
+      calc();
+    });
+
+    el("profitSelect").addEventListener("change", () => {
+      syncTimeByProfit();
+      calc();
+    });
+
+    ["principal","paid","timeValue"].forEach(id => {
+      el(id).addEventListener("input", () => {
+        if (el("plan").value === "monthly") clampMonthlyTime();
+        calc();
+      });
+    });
+
+    el("calcBtn").addEventListener("click", calc);
+    el("resetBtn").addEventListener("click", resetAll);
+
+    // Init
+    setProfitOptions();
+    calc();
+  </script>
+</body>
+</html>
